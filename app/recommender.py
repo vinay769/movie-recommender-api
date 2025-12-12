@@ -1,32 +1,36 @@
-# app/recommender.py
+import os
 import pickle
-import pandas as pd
+import requests
 
-# Load your saved files
-movies = pickle.load(open('movie_list.pkl', 'rb'))
-similarity = pickle.load(open('similarity.pkl', 'rb'))
+MOVIE_LIST_URL = "https://huggingface.co/YOUR_USERNAME/movie-recommender-model/resolve/main/movie_list.pkl"
+SIMILARITY_URL = "https://huggingface.co/YOUR_USERNAME/movie-recommender-model/resolve/main/similarity.pkl"
+
+def download_file(url, filename):
+    if not os.path.exists(filename):
+        print(f"Downloading {filename}...")
+        r = requests.get(url)
+        r.raise_for_status()
+        with open(filename, "wb") as f:
+            f.write(r.content)
+        print(f"{filename} downloaded.")
+
+# Download both files if missing:
+download_file(MOVIE_LIST_URL, "movie_list.pkl")
+download_file(SIMILARITY_URL, "similarity.pkl")
+
+# Load them
+movies = pickle.load(open("movie_list.pkl", "rb"))
+similarity = pickle.load(open("similarity.pkl", "rb"))
 
 def recommend(movie_name):
-    movie_name = movie_name.lower()
-
-    # Find movie index
-    try:
-        movie_index = movies[movies['title'].str.lower() == movie_name].index[0]
-    except:
+    if movie_name not in movies['title'].values:
         return []
-
-    # Fetch similarity scores
-    distances = similarity[movie_index]
-
-    # Top 5 similar movies (excluding itself)
-    movie_list = sorted(
-        list(enumerate(distances)),
-        key=lambda x: x[1],
-        reverse=True
-    )[1:6]  
-
-    recommended_movies = []
-    for i in movie_list:
-        recommended_movies.append(movies.iloc[i[0]].title)
-
-    return recommended_movies
+    
+    idx = movies[movies['title'] == movie_name].index[0]
+    distances = sorted(
+        list(enumerate(similarity[idx])),
+        reverse=True,
+        key=lambda x: x[1]
+    )
+    recs = [movies.iloc[i[0]].title for i in distances[1:6]]
+    return recs
